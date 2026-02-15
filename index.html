@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quant AI Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 40px;
+    }
+    input {
+      padding: 10px;
+      font-size: 16px;
+      width: 200px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #2563eb;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      margin: 20px auto;
+      width: 600px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📈 Quant AI Stock Predictor</h1>
+
+<input id="ticker" placeholder="Enter ticker (AAPL)">
+<button onclick="analyze()">Analyze</button>
+
+<div class="card">
+  <h3>Results</h3>
+  <p id="price"></p>
+  <p id="confidence"></p>
+</div>
+
+<canvas id="chart" width="600" height="400"></canvas>
+
+<script>
+const backendURL = "https://quant-ai-backend-production.up.railway.app";
+
+async function analyze() {
+  const ticker = document.getElementById("ticker").value;
+  const response = await fetch(`${backendURL}/analyze/${ticker}`);
+  const data = await response.json();
+
+  document.getElementById("price").innerText =
+    "Last Price: $" + data.last_price.toFixed(2);
+
+  document.getElementById("confidence").innerText =
+    "95% Range: $" +
+    data.confidence_interval[0].toFixed(2) +
+    " - $" +
+    data.confidence_interval[1].toFixed(2);
+
+  renderChart(data.simulations.slice(0, 20));
+}
+
+function renderChart(simulations) {
+  const ctx = document.getElementById("chart").getContext("2d");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: Array.from({length: simulations[0].length}, (_, i) => i),
+      datasets: simulations.map(sim => ({
+        data: sim,
+        borderWidth: 1,
+        fill: false
+      }))
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { ticks: { color: "white" } }
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
