@@ -1,207 +1,118 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Quant AI Pro</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: white;
-      text-align: center;
-      padding: 40px;
-    }
-    input {
-      padding: 10px;
-      font-size: 16px;
-      width: 200px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      background: #2563eb;
-      border: none;
-      color: white;
-      cursor: pointer;
-    }
-    .card {
-      background: #1e293b;
-      padding: 20px;
-      margin: 20px auto;
-      width: 800px;
-      border-radius: 12px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      margin-top: 20px;
-    }
-    .metric {
-      background: #111827;
-      padding: 15px;
-      border-radius: 8px;
-    }
-    .bullish { color: #22c55e; font-weight: bold; }
-    .bearish { color: #ef4444; font-weight: bold; }
-    .neutral { color: #facc15; font-weight: bold; }
-    .prob-bar {
-      height: 10px;
-      background: #334155;
-      border-radius: 5px;
-      margin-top: 5px;
-    }
-    .prob-fill {
-      height: 10px;
-      background: #22c55e;
-      border-radius: 5px;
-    }
-  </style>
+    <title>Quant Signal Engine</title>
+    <style>
+        body {
+            font-family: Arial;
+            background-color: #0f172a;
+            color: white;
+            text-align: center;
+            padding: 40px;
+        }
+
+        input {
+            padding: 10px;
+            font-size: 16px;
+            width: 150px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 20px;
+            margin: 20px auto;
+            width: 600px;
+            border-radius: 12px;
+        }
+
+        .score {
+            font-size: 72px;
+            font-weight: bold;
+        }
+
+        .buy { color: #22c55e; }
+        .neutral { color: #facc15; }
+        .sell { color: #ef4444; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .uptrend { background: #166534; }
+        .downtrend { background: #7f1d1d; }
+        .range { background: #334155; }
+
+    </style>
 </head>
 <body>
 
-<h1>📊 Quant AI Pro Dashboard</h1>
+    <h1>Quant Signal Engine</h1>
 
-<input id="ticker" placeholder="Enter ticker (AAPL)">
-<button onclick="analyze()">Analyze</button>
+    <input id="ticker" placeholder="AAPL">
+    <button onclick="analyze()">Analyze</button>
 
-<div class="card" id="results" style="display:none;">
-  <h2 id="tickerTitle"></h2>
-
-  <div class="grid">
-    <div class="metric">
-      <h4>Last Price</h4>
-      <p id="lastPrice"></p>
-    </div>
-
-    <div class="metric">
-      <h4>Expected 30D Price</h4>
-      <p id="expectedPrice"></p>
-    </div>
-
-    <div class="metric">
-      <h4>Bias</h4>
-      <p id="bias"></p>
-    </div>
-
-    <div class="metric">
-      <h4>Probability Upside</h4>
-      <p id="probUp"></p>
-      <div class="prob-bar">
-        <div id="probFill" class="prob-fill"></div>
-      </div>
-    </div>
-
-    <div class="metric">
-      <h4>Sharpe Ratio</h4>
-      <p id="sharpe"></p>
-    </div>
-
-    <div class="metric">
-      <h4>Annual Volatility</h4>
-      <p id="volatility"></p>
-    </div>
-
-    <div class="metric">
-      <h4>RSI</h4>
-      <p id="rsi"></p>
-    </div>
-
-    <div class="metric">
-      <h4>MACD</h4>
-      <p id="macd"></p>
-    </div>
-  </div>
-</div>
-
-<canvas id="chart" width="900" height="400"></canvas>
+    <div id="result"></div>
 
 <script>
-const backendURL = "https://quant-ai-backend-production.up.railway.app";
-
 async function analyze() {
-  const ticker = document.getElementById("ticker").value;
-  const response = await fetch(`${backendURL}/analyze/${ticker}`);
-  const data = await response.json();
+    const ticker = document.getElementById("ticker").value;
+    const res = await fetch(`https://quant-ai-backend-production.up.railway.app/analyze/${ticker}`);
+    const data = await res.json();
 
-  if (data.error) {
-    alert(data.error);
-    return;
-  }
+    let scoreClass = "neutral";
+    if (data.signal_score > 60) scoreClass = "buy";
+    if (data.signal_score < 40) scoreClass = "sell";
 
-  document.getElementById("results").style.display = "block";
-  document.getElementById("tickerTitle").innerText = data.ticker;
+    let trendClass = "range";
+    if (data.trend_regime === "Uptrend") trendClass = "uptrend";
+    if (data.trend_regime === "Downtrend") trendClass = "downtrend";
 
-  document.getElementById("lastPrice").innerText =
-    "$" + data.last_price.toFixed(2);
+    document.getElementById("result").innerHTML = `
+        <div class="card">
+            <div class="score ${scoreClass}">
+                ${data.signal_score.toFixed(1)}
+            </div>
+            <h2>${data.signal_label}</h2>
 
-  document.getElementById("expectedPrice").innerText =
-    "$" + data.expected_30d_price.toFixed(2);
+            <div class="badge ${trendClass}">
+                ${data.trend_regime}
+            </div>
 
-  const probPercent = (data.probability_upside * 100).toFixed(1);
-
-  document.getElementById("probUp").innerText =
-    probPercent + "%";
-
-  document.getElementById("probFill").style.width =
-    probPercent + "%";
-
-  document.getElementById("sharpe").innerText =
-    data.sharpe_ratio.toFixed(2);
-
-  document.getElementById("volatility").innerText =
-    (data.annual_volatility * 100).toFixed(2) + "%";
-
-  document.getElementById("rsi").innerText =
-    data.rsi.toFixed(2);
-
-  document.getElementById("macd").innerText =
-    data.macd.toFixed(4);
-
-  const biasEl = document.getElementById("bias");
-  biasEl.innerText = data.bias;
-
-  biasEl.className =
-    data.bias === "Bullish"
-      ? "bullish"
-      : data.bias === "Bearish"
-      ? "bearish"
-      : "neutral";
-
-  renderChart(data.simulations.slice(0, 30));
-}
-
-function renderChart(simulations) {
-  const ctx = document.getElementById("chart").getContext("2d");
-
-  if (window.myChart) {
-    window.myChart.destroy();
-  }
-
-  window.myChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: Array.from({length: simulations[0].length}, (_, i) => i),
-      datasets: simulations.map(sim => ({
-        data: sim,
-        borderWidth: 1,
-        fill: false
-      }))
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { display: false },
-        y: { ticks: { color: "white" } }
-      }
-    }
-  });
+            <div class="grid">
+                <div>Last Price:</div><div>$${data.last_price.toFixed(2)}</div>
+                <div>Expected 30D:</div><div>$${data.expected_30d_price.toFixed(2)}</div>
+                <div>Probability Up:</div><div>${(data.probability_upside*100).toFixed(1)}%</div>
+                <div>Sharpe Ratio:</div><div>${data.sharpe_ratio.toFixed(2)}</div>
+                <div>RSI:</div><div>${data.rsi.toFixed(1)}</div>
+                <div>MACD:</div><div>${data.macd.toFixed(2)}</div>
+                <div>Volatility Regime:</div><div>${data.volatility_regime}</div>
+                <div>VaR (95%):</div><div>$${data.value_at_risk_95.toFixed(2)}</div>
+            </div>
+        </div>
+    `;
 }
 </script>
-
-</body>
-</html>
-
 
 </body>
 </html>
