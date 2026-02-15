@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Quant AI Predictor</title>
+  <title>Quant AI Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #0f172a;
+      background: #0f172a;
       color: white;
       text-align: center;
       padding: 40px;
@@ -28,25 +28,93 @@
       background: #1e293b;
       padding: 20px;
       margin: 20px auto;
-      width: 600px;
-      border-radius: 10px;
+      width: 800px;
+      border-radius: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .metric {
+      background: #111827;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .bullish { color: #22c55e; font-weight: bold; }
+    .bearish { color: #ef4444; font-weight: bold; }
+    .neutral { color: #facc15; font-weight: bold; }
+    .prob-bar {
+      height: 10px;
+      background: #334155;
+      border-radius: 5px;
+      margin-top: 5px;
+    }
+    .prob-fill {
+      height: 10px;
+      background: #22c55e;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
 
-<h1>📈 Quant AI Stock Predictor</h1>
+<h1>📊 Quant AI Pro Dashboard</h1>
 
 <input id="ticker" placeholder="Enter ticker (AAPL)">
 <button onclick="analyze()">Analyze</button>
 
-<div class="card">
-  <h3>Results</h3>
-  <p id="price"></p>
-  <p id="confidence"></p>
+<div class="card" id="results" style="display:none;">
+  <h2 id="tickerTitle"></h2>
+
+  <div class="grid">
+    <div class="metric">
+      <h4>Last Price</h4>
+      <p id="lastPrice"></p>
+    </div>
+
+    <div class="metric">
+      <h4>Expected 30D Price</h4>
+      <p id="expectedPrice"></p>
+    </div>
+
+    <div class="metric">
+      <h4>Bias</h4>
+      <p id="bias"></p>
+    </div>
+
+    <div class="metric">
+      <h4>Probability Upside</h4>
+      <p id="probUp"></p>
+      <div class="prob-bar">
+        <div id="probFill" class="prob-fill"></div>
+      </div>
+    </div>
+
+    <div class="metric">
+      <h4>Sharpe Ratio</h4>
+      <p id="sharpe"></p>
+    </div>
+
+    <div class="metric">
+      <h4>Annual Volatility</h4>
+      <p id="volatility"></p>
+    </div>
+
+    <div class="metric">
+      <h4>RSI</h4>
+      <p id="rsi"></p>
+    </div>
+
+    <div class="metric">
+      <h4>MACD</h4>
+      <p id="macd"></p>
+    </div>
+  </div>
 </div>
 
-<canvas id="chart" width="600" height="400"></canvas>
+<canvas id="chart" width="900" height="400"></canvas>
 
 <script>
 const backendURL = "https://quant-ai-backend-production.up.railway.app";
@@ -56,22 +124,61 @@ async function analyze() {
   const response = await fetch(`${backendURL}/analyze/${ticker}`);
   const data = await response.json();
 
-  document.getElementById("price").innerText =
-    "Last Price: $" + data.last_price.toFixed(2);
+  if (data.error) {
+    alert(data.error);
+    return;
+  }
 
-  document.getElementById("confidence").innerText =
-    "95% Range: $" +
-    data.confidence_interval[0].toFixed(2) +
-    " - $" +
-    data.confidence_interval[1].toFixed(2);
+  document.getElementById("results").style.display = "block";
+  document.getElementById("tickerTitle").innerText = data.ticker;
 
-  renderChart(data.simulations.slice(0, 20));
+  document.getElementById("lastPrice").innerText =
+    "$" + data.last_price.toFixed(2);
+
+  document.getElementById("expectedPrice").innerText =
+    "$" + data.expected_30d_price.toFixed(2);
+
+  const probPercent = (data.probability_upside * 100).toFixed(1);
+
+  document.getElementById("probUp").innerText =
+    probPercent + "%";
+
+  document.getElementById("probFill").style.width =
+    probPercent + "%";
+
+  document.getElementById("sharpe").innerText =
+    data.sharpe_ratio.toFixed(2);
+
+  document.getElementById("volatility").innerText =
+    (data.annual_volatility * 100).toFixed(2) + "%";
+
+  document.getElementById("rsi").innerText =
+    data.rsi.toFixed(2);
+
+  document.getElementById("macd").innerText =
+    data.macd.toFixed(4);
+
+  const biasEl = document.getElementById("bias");
+  biasEl.innerText = data.bias;
+
+  biasEl.className =
+    data.bias === "Bullish"
+      ? "bullish"
+      : data.bias === "Bearish"
+      ? "bearish"
+      : "neutral";
+
+  renderChart(data.simulations.slice(0, 30));
 }
 
 function renderChart(simulations) {
   const ctx = document.getElementById("chart").getContext("2d");
 
-  new Chart(ctx, {
+  if (window.myChart) {
+    window.myChart.destroy();
+  }
+
+  window.myChart = new Chart(ctx, {
     type: "line",
     data: {
       labels: Array.from({length: simulations[0].length}, (_, i) => i),
@@ -91,6 +198,10 @@ function renderChart(simulations) {
   });
 }
 </script>
+
+</body>
+</html>
+
 
 </body>
 </html>
