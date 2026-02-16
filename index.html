@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Quant Signal Engine</title>
+    <title>Quant AI Terminal</title>
     <style>
         body {
             font-family: Arial;
@@ -42,8 +42,9 @@
             background: #1e293b;
             padding: 30px;
             margin: auto;
-            width: 700px;
+            width: 900px;
             border-radius: 12px;
+            margin-bottom: 30px;
         }
 
         .score {
@@ -84,11 +85,47 @@
         .metric-title {
             opacity: 0.7;
         }
+
+        .gauge-container {
+            width: 100%;
+            height: 20px;
+            background: #334155;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .gauge-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.8s ease-in-out;
+        }
+
+        .watchlist-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .watch-card {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        canvas {
+            margin-top: 30px;
+            background: #0f172a;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
 
-<h1>Quant Signal Engine</h1>
+<h1>Quant AI Terminal</h1>
 
 <div class="top-bar">
     <select id="presetStocks" onchange="analyze()">
@@ -104,98 +141,163 @@
     </select>
 
     <input id="ticker" placeholder="Or enter ticker">
-
     <button onclick="analyze()">Analyze</button>
 </div>
 
 <div id="result"></div>
 
+<div class="watchlist-grid" id="watchlist"></div>
+
 <script>
-async function analyze() {
+
+const backend = "https://quant-ai-backend-production.up.railway.app";
+
+async function analyze(tickerOverride=null) {
 
     let tickerInput = document.getElementById("ticker").value.trim();
     let preset = document.getElementById("presetStocks").value;
-
-    let ticker = tickerInput !== "" ? tickerInput : preset;
+    let ticker = tickerOverride || (tickerInput !== "" ? tickerInput : preset);
 
     if (!ticker) {
-        alert("Please select or enter a ticker.");
+        alert("Select or enter a ticker.");
         return;
     }
 
-    // 🔥 Loading state
     document.getElementById("result").innerHTML =
         "<div class='card'>Analyzing...</div>";
 
-    try {
-        const res = await fetch(
-            `https://quant-ai-backend-production.up.railway.app/analyze/${ticker}`
-        );
+    const res = await fetch(`${backend}/analyze/${ticker}`);
+    const data = await res.json();
 
+    let scoreClass = "neutral";
+    let gaugeColor = "#facc15";
+
+    if (data.signal_score > 60) {
+        scoreClass = "buy";
+        gaugeColor = "#22c55e";
+    }
+    if (data.signal_score < 40) {
+        scoreClass = "sell";
+        gaugeColor = "#ef4444";
+    }
+
+    let trendClass = "range";
+    if (data.trend_regime === "Uptrend") trendClass = "uptrend";
+    if (data.trend_regime === "Downtrend") trendClass = "downtrend";
+
+    document.getElementById("result").innerHTML = `
+        <div class="card">
+
+            <h2 style="text-align:center;">${data.ticker}</h2>
+
+            <div class="score ${scoreClass}">
+                ${data.signal_score.toFixed(1)}
+            </div>
+
+            <div class="gauge-container">
+                <div class="gauge-bar" id="gaugeBar"
+                     style="background:${gaugeColor}; width:0%;">
+                </div>
+            </div>
+
+            <div class="label">${data.signal_label}</div>
+
+            <div style="text-align:center;">
+                <span class="badge ${trendClass}">
+                    ${data.trend_regime}
+                </span>
+                <span class="badge">${data.volatility_regime}</span>
+                <span class="badge">${data.bias}</span>
+            </div>
+
+            <div class="grid">
+                <div class="metric-title">Last Price</div>
+                <div>$${data.last_price.toFixed(2)}</div>
+
+                <div class="metric-title">Expected 30D</div>
+                <div>$${data.expected_30d_price.toFixed(2)}</div>
+
+                <div class="metric-title">Probability Up</div>
+                <div>${(data.probability_upside*100).toFixed(1)}%</div>
+
+                <div class="metric-title">Sharpe Ratio</div>
+                <div>${data.sharpe_ratio.toFixed(2)}</div>
+
+                <div class="metric-title">RSI</div>
+                <div>${data.rsi.toFixed(1)}</div>
+
+                <div class="metric-title">MACD</div>
+                <div>${data.macd.toFixed(2)}</div>
+
+                <div class="metric-title">VaR (95%)</div>
+                <div>$${data.value_at_risk_95.toFixed(2)}</div>
+            </div>
+
+            <canvas id="mcChart" width="800" height="300"></canvas>
+
+        </div>
+    `;
+
+    // Animate gauge
+    setTimeout(() => {
+        document.getElementById("gaugeBar").style.width =
+            data.signal_score + "%";
+    }, 100);
+
+    drawMonteCarlo(data.simulations);
+}
+
+function drawMonteCarlo(simulations) {
+
+    const canvas = document.getElementById("mcChart");
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "rgba(34,197,94,0.15)";
+
+    simulations.slice(0, 100).forEach(path => {
+        ctx.beginPath();
+        path.forEach((price, i) => {
+            let x = (i / path.length) * canvas.width;
+            let y = canvas.height - (price / path[0]) * 150;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    });
+}
+
+// 🔥 Multi-stock watchlist overview
+const watchTickers = ["AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","SPY"];
+
+async function loadWatchlist() {
+    const container = document.getElementById("watchlist");
+    container.innerHTML = "";
+
+    for (let ticker of watchTickers) {
+        const res = await fetch(`${backend}/analyze/${ticker}`);
         const data = await res.json();
 
-        let scoreClass = "neutral";
-        if (data.signal_score > 60) scoreClass = "buy";
-        if (data.signal_score < 40) scoreClass = "sell";
+        let color = "#facc15";
+        if (data.signal_score > 60) color = "#22c55e";
+        if (data.signal_score < 40) color = "#ef4444";
 
-        let trendClass = "range";
-        if (data.trend_regime === "Uptrend") trendClass = "uptrend";
-        if (data.trend_regime === "Downtrend") trendClass = "downtrend";
-
-        document.getElementById("result").innerHTML = `
-            <div class="card">
-
-                <h2 style="text-align:center;">${data.ticker}</h2>
-
-                <div class="score ${scoreClass}">
-                    ${data.signal_score.toFixed(1)}
+        container.innerHTML += `
+            <div class="watch-card"
+                 onclick="analyze('${ticker}')">
+                <div>${ticker}</div>
+                <div style="color:${color};
+                            font-size:22px;
+                            font-weight:bold;">
+                    ${data.signal_score.toFixed(0)}
                 </div>
-
-                <div class="label">${data.signal_label}</div>
-
-                <div style="text-align:center;">
-                    <span class="badge ${trendClass}">
-                        ${data.trend_regime}
-                    </span>
-                    <span class="badge">
-                        ${data.volatility_regime}
-                    </span>
-                    <span class="badge">
-                        ${data.bias}
-                    </span>
-                </div>
-
-                <div class="grid">
-                    <div class="metric-title">Last Price</div>
-                    <div>$${data.last_price.toFixed(2)}</div>
-
-                    <div class="metric-title">Expected 30D</div>
-                    <div>$${data.expected_30d_price.toFixed(2)}</div>
-
-                    <div class="metric-title">Probability Up</div>
-                    <div>${(data.probability_upside*100).toFixed(1)}%</div>
-
-                    <div class="metric-title">Sharpe Ratio</div>
-                    <div>${data.sharpe_ratio.toFixed(2)}</div>
-
-                    <div class="metric-title">RSI</div>
-                    <div>${data.rsi.toFixed(1)}</div>
-
-                    <div class="metric-title">MACD</div>
-                    <div>${data.macd.toFixed(2)}</div>
-
-                    <div class="metric-title">VaR (95%)</div>
-                    <div>$${data.value_at_risk_95.toFixed(2)}</div>
-                </div>
-
             </div>
         `;
-
-    } catch (error) {
-        document.getElementById("result").innerHTML =
-            "<div class='card'>Error fetching data.</div>";
     }
 }
+
+loadWatchlist();
+
 </script>
 
 </body>
