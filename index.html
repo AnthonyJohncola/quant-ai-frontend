@@ -122,7 +122,7 @@ async function analyze() {
         return;
     }
 
-    const res = await fetch(`https://YOUR-RAILWAY-URL/analyze/${ticker}`);
+    const res = await fetch(`https://quant-ai-backend-production.up.railway.app/analyze/${ticker}`);
     const data = await res.json();
 
     let scoreClass = "neutral";
