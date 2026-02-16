@@ -7,105 +7,80 @@
             font-family: Arial;
             background-color: #0f172a;
             color: white;
-            padding: 40px;
+            padding: 30px;
         }
 
         h1 {
             text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            margin-top: 40px;
+            font-size: 22px;
         }
 
         .top-bar {
             display: flex;
             justify-content: center;
             gap: 10px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         select, input {
             padding: 10px;
-            font-size: 16px;
             border-radius: 6px;
             border: none;
         }
 
         button {
             padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #2563eb;
-            color: white;
+            background: #2563eb;
             border: none;
+            color: white;
             border-radius: 6px;
+            cursor: pointer;
         }
 
         .card {
             background: #1e293b;
-            padding: 30px;
-            margin: auto;
-            width: 900px;
+            padding: 25px;
             border-radius: 12px;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
 
         .score {
-            font-size: 80px;
+            font-size: 70px;
+            text-align: center;
             font-weight: bold;
-            text-align: center;
-        }
-
-        .buy { color: #22c55e; }
-        .neutral { color: #facc15; }
-        .sell { color: #ef4444; }
-
-        .label {
-            text-align: center;
-            font-size: 24px;
-            margin-bottom: 15px;
-        }
-
-        .badge {
-            padding: 6px 12px;
-            border-radius: 6px;
-            display: inline-block;
-            margin: 5px;
-            background: #334155;
-        }
-
-        .uptrend { background: #166534; }
-        .downtrend { background: #7f1d1d; }
-        .range { background: #334155; }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 25px;
-        }
-
-        .metric-title {
-            opacity: 0.7;
         }
 
         .gauge-container {
-            width: 100%;
-            height: 20px;
+            height: 18px;
             background: #334155;
             border-radius: 10px;
-            margin: 20px 0;
+            margin: 15px 0;
             overflow: hidden;
         }
 
         .gauge-bar {
             height: 100%;
             width: 0%;
-            transition: width 0.8s ease-in-out;
+            transition: width 0.8s ease;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
         }
 
         .watchlist-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
-            margin-top: 30px;
+            margin-top: 15px;
         }
 
         .watch-card {
@@ -117,10 +92,34 @@
         }
 
         canvas {
-            margin-top: 30px;
+            margin-top: 20px;
             background: #0f172a;
-            border-radius: 10px;
+            border-radius: 8px;
         }
+
+        .heatmap {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .heat-cell {
+            padding: 15px;
+            text-align: center;
+            border-radius: 6px;
+        }
+
+        textarea {
+            width: 100%;
+            background: #0f172a;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            height: 100px;
+        }
+
     </style>
 </head>
 <body>
@@ -130,27 +129,39 @@
 <div class="top-bar">
     <select id="presetStocks" onchange="analyze()">
         <option value="">Select Stock</option>
-        <option value="AAPL">Apple (AAPL)</option>
-        <option value="MSFT">Microsoft (MSFT)</option>
-        <option value="NVDA">Nvidia (NVDA)</option>
-        <option value="TSLA">Tesla (TSLA)</option>
-        <option value="AMZN">Amazon (AMZN)</option>
-        <option value="GOOGL">Google (GOOGL)</option>
-        <option value="META">Meta (META)</option>
-        <option value="SPY">S&P 500 ETF (SPY)</option>
+        <option value="AAPL">AAPL</option>
+        <option value="MSFT">MSFT</option>
+        <option value="NVDA">NVDA</option>
+        <option value="TSLA">TSLA</option>
+        <option value="AMZN">AMZN</option>
+        <option value="GOOGL">GOOGL</option>
+        <option value="META">META</option>
+        <option value="SPY">SPY</option>
     </select>
-
     <input id="ticker" placeholder="Or enter ticker">
     <button onclick="analyze()">Analyze</button>
 </div>
 
-<div id="result"></div>
+<div id="mainPanel"></div>
 
-<div class="watchlist-grid" id="watchlist"></div>
+<div class="section-title">Watchlist Overview</div>
+<div id="watchlist" class="watchlist-grid"></div>
+
+<div class="section-title">Sector Heatmap</div>
+<div id="heatmap" class="heatmap"></div>
+
+<div class="section-title">Portfolio Score</div>
+<div id="portfolioPanel"></div>
 
 <script>
 
 const backend = "https://quant-ai-backend-production.up.railway.app";
+const watchTickers = ["AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","SPY"];
+let autoRefresh = true;
+
+// ============================
+// MAIN ANALYSIS
+// ============================
 
 async function analyze(tickerOverride=null) {
 
@@ -158,145 +169,180 @@ async function analyze(tickerOverride=null) {
     let preset = document.getElementById("presetStocks").value;
     let ticker = tickerOverride || (tickerInput !== "" ? tickerInput : preset);
 
-    if (!ticker) {
-        alert("Select or enter a ticker.");
-        return;
-    }
-
-    document.getElementById("result").innerHTML =
-        "<div class='card'>Analyzing...</div>";
+    if (!ticker) return;
 
     const res = await fetch(`${backend}/analyze/${ticker}`);
     const data = await res.json();
 
-    let scoreClass = "neutral";
-    let gaugeColor = "#facc15";
+    renderMainPanel(data);
+}
 
-    if (data.signal_score > 60) {
-        scoreClass = "buy";
-        gaugeColor = "#22c55e";
-    }
-    if (data.signal_score < 40) {
-        scoreClass = "sell";
-        gaugeColor = "#ef4444";
-    }
+// ============================
+// MAIN PANEL RENDER
+// ============================
 
-    let trendClass = "range";
-    if (data.trend_regime === "Uptrend") trendClass = "uptrend";
-    if (data.trend_regime === "Downtrend") trendClass = "downtrend";
+function renderMainPanel(data) {
 
-    document.getElementById("result").innerHTML = `
+    let color = "#facc15";
+    if (data.signal_score > 60) color = "#22c55e";
+    if (data.signal_score < 40) color = "#ef4444";
+
+    document.getElementById("mainPanel").innerHTML = `
         <div class="card">
 
             <h2 style="text-align:center;">${data.ticker}</h2>
 
-            <div class="score ${scoreClass}">
+            <div class="score" style="color:${color}">
                 ${data.signal_score.toFixed(1)}
             </div>
 
             <div class="gauge-container">
-                <div class="gauge-bar" id="gaugeBar"
-                     style="background:${gaugeColor}; width:0%;">
+                <div class="gauge-bar"
+                     style="background:${color};
+                            width:${data.signal_score}%;">
                 </div>
             </div>
 
-            <div class="label">${data.signal_label}</div>
-
             <div style="text-align:center;">
-                <span class="badge ${trendClass}">
-                    ${data.trend_regime}
-                </span>
-                <span class="badge">${data.volatility_regime}</span>
-                <span class="badge">${data.bias}</span>
+                ${data.signal_label} | 
+                ${data.trend_regime} | 
+                ${data.volatility_regime}
             </div>
 
             <div class="grid">
-                <div class="metric-title">Last Price</div>
-                <div>$${data.last_price.toFixed(2)}</div>
-
-                <div class="metric-title">Expected 30D</div>
-                <div>$${data.expected_30d_price.toFixed(2)}</div>
-
-                <div class="metric-title">Probability Up</div>
-                <div>${(data.probability_upside*100).toFixed(1)}%</div>
-
-                <div class="metric-title">Sharpe Ratio</div>
-                <div>${data.sharpe_ratio.toFixed(2)}</div>
-
-                <div class="metric-title">RSI</div>
-                <div>${data.rsi.toFixed(1)}</div>
-
-                <div class="metric-title">MACD</div>
-                <div>${data.macd.toFixed(2)}</div>
-
-                <div class="metric-title">VaR (95%)</div>
-                <div>$${data.value_at_risk_95.toFixed(2)}</div>
+                <div>Price</div><div>$${data.last_price.toFixed(2)}</div>
+                <div>Prob Up</div><div>${(data.probability_upside*100).toFixed(1)}%</div>
+                <div>Sharpe</div><div>${data.sharpe_ratio.toFixed(2)}</div>
+                <div>RSI</div><div>${data.rsi.toFixed(1)}</div>
             </div>
 
-            <canvas id="mcChart" width="800" height="300"></canvas>
+            <canvas id="mcChart" width="800" height="250"></canvas>
+
+            <div class="section-title">AI Explanation</div>
+            <textarea readonly>
+${generateExplanation(data)}
+            </textarea>
 
         </div>
     `;
 
-    // Animate gauge
-    setTimeout(() => {
-        document.getElementById("gaugeBar").style.width =
-            data.signal_score + "%";
-    }, 100);
-
     drawMonteCarlo(data.simulations);
 }
+
+// ============================
+// AI EXPLANATION
+// ============================
+
+function generateExplanation(d) {
+
+    let explanation = "";
+
+    if (d.signal_score > 70)
+        explanation += "Strong momentum and positive trend alignment. ";
+    else if (d.signal_score < 40)
+        explanation += "Weak structure with bearish indicators. ";
+    else
+        explanation += "Mixed signals with moderate conviction. ";
+
+    if (d.rsi < 30)
+        explanation += "RSI indicates oversold conditions. ";
+    if (d.rsi > 70)
+        explanation += "RSI indicates overbought conditions. ";
+
+    if (d.trend_regime === "Uptrend")
+        explanation += "Long-term moving averages confirm uptrend. ";
+    if (d.trend_regime === "Downtrend")
+        explanation += "Long-term moving averages confirm downtrend. ";
+
+    return explanation;
+}
+
+// ============================
+// MONTE CARLO
+// ============================
 
 function drawMonteCarlo(simulations) {
 
     const canvas = document.getElementById("mcChart");
     const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = "rgba(34,197,94,0.15)";
 
-    simulations.slice(0, 100).forEach(path => {
+    simulations.slice(0,100).forEach(path => {
         ctx.beginPath();
-        path.forEach((price, i) => {
-            let x = (i / path.length) * canvas.width;
-            let y = canvas.height - (price / path[0]) * 150;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        path.forEach((price,i)=>{
+            let x = (i/path.length)*canvas.width;
+            let y = canvas.height - (price/path[0])*150;
+            if(i===0) ctx.moveTo(x,y);
+            else ctx.lineTo(x,y);
         });
         ctx.stroke();
     });
 }
 
-// 🔥 Multi-stock watchlist overview
-const watchTickers = ["AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","SPY"];
+// ============================
+// WATCHLIST + HEATMAP
+// ============================
 
 async function loadWatchlist() {
-    const container = document.getElementById("watchlist");
-    container.innerHTML = "";
 
-    for (let ticker of watchTickers) {
-        const res = await fetch(`${backend}/analyze/${ticker}`);
-        const data = await res.json();
+    let totalScore = 0;
+
+    document.getElementById("watchlist").innerHTML = "";
+    document.getElementById("heatmap").innerHTML = "";
+
+    for (let t of watchTickers) {
+
+        const res = await fetch(`${backend}/analyze/${t}`);
+        const d = await res.json();
+
+        totalScore += d.signal_score;
 
         let color = "#facc15";
-        if (data.signal_score > 60) color = "#22c55e";
-        if (data.signal_score < 40) color = "#ef4444";
+        if (d.signal_score > 60) color = "#22c55e";
+        if (d.signal_score < 40) color = "#ef4444";
 
-        container.innerHTML += `
+        document.getElementById("watchlist").innerHTML += `
             <div class="watch-card"
-                 onclick="analyze('${ticker}')">
-                <div>${ticker}</div>
-                <div style="color:${color};
-                            font-size:22px;
-                            font-weight:bold;">
-                    ${data.signal_score.toFixed(0)}
-                </div>
+                 onclick="analyze('${t}')">
+                ${t}<br>
+                <span style="color:${color};
+                             font-weight:bold;">
+                ${d.signal_score.toFixed(0)}
+                </span>
+            </div>
+        `;
+
+        document.getElementById("heatmap").innerHTML += `
+            <div class="heat-cell"
+                 style="background:${color}">
+                ${t}<br>${d.signal_score.toFixed(0)}
             </div>
         `;
     }
+
+    let avgScore = totalScore / watchTickers.length;
+
+    document.getElementById("portfolioPanel").innerHTML = `
+        <div class="card">
+            Average Watchlist Score:
+            <div class="score">${avgScore.toFixed(1)}</div>
+        </div>
+    `;
 }
 
 loadWatchlist();
+
+// ============================
+// AUTO REFRESH
+// ============================
+
+setInterval(()=>{
+    if(autoRefresh){
+        loadWatchlist();
+    }
+}, 60000);
 
 </script>
 
