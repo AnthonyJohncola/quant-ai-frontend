@@ -67,6 +67,7 @@
             border-radius: 6px;
             display: inline-block;
             margin: 5px;
+            background: #334155;
         }
 
         .uptrend { background: #166534; }
@@ -90,7 +91,7 @@
 <h1>Quant Signal Engine</h1>
 
 <div class="top-bar">
-    <select id="presetStocks">
+    <select id="presetStocks" onchange="analyze()">
         <option value="">Select Stock</option>
         <option value="AAPL">Apple (AAPL)</option>
         <option value="MSFT">Microsoft (MSFT)</option>
@@ -112,73 +113,88 @@
 <script>
 async function analyze() {
 
-    let tickerInput = document.getElementById("ticker").value;
+    let tickerInput = document.getElementById("ticker").value.trim();
     let preset = document.getElementById("presetStocks").value;
 
-    let ticker = tickerInput || preset;
+    let ticker = tickerInput !== "" ? tickerInput : preset;
 
     if (!ticker) {
         alert("Please select or enter a ticker.");
         return;
     }
 
-    const res = await fetch(`https://quant-ai-backend-production.up.railway.app/analyze/${ticker}`);
-    const data = await res.json();
+    // 🔥 Loading state
+    document.getElementById("result").innerHTML =
+        "<div class='card'>Analyzing...</div>";
 
-    let scoreClass = "neutral";
-    if (data.signal_score > 60) scoreClass = "buy";
-    if (data.signal_score < 40) scoreClass = "sell";
+    try {
+        const res = await fetch(
+            `https://quant-ai-backend-production.up.railway.app/analyze/${ticker}`
+        );
 
-    let trendClass = "range";
-    if (data.trend_regime === "Uptrend") trendClass = "uptrend";
-    if (data.trend_regime === "Downtrend") trendClass = "downtrend";
+        const data = await res.json();
 
-    document.getElementById("result").innerHTML = `
-        <div class="card">
+        let scoreClass = "neutral";
+        if (data.signal_score > 60) scoreClass = "buy";
+        if (data.signal_score < 40) scoreClass = "sell";
 
-            <div class="score ${scoreClass}">
-                ${data.signal_score.toFixed(1)}
+        let trendClass = "range";
+        if (data.trend_regime === "Uptrend") trendClass = "uptrend";
+        if (data.trend_regime === "Downtrend") trendClass = "downtrend";
+
+        document.getElementById("result").innerHTML = `
+            <div class="card">
+
+                <h2 style="text-align:center;">${data.ticker}</h2>
+
+                <div class="score ${scoreClass}">
+                    ${data.signal_score.toFixed(1)}
+                </div>
+
+                <div class="label">${data.signal_label}</div>
+
+                <div style="text-align:center;">
+                    <span class="badge ${trendClass}">
+                        ${data.trend_regime}
+                    </span>
+                    <span class="badge">
+                        ${data.volatility_regime}
+                    </span>
+                    <span class="badge">
+                        ${data.bias}
+                    </span>
+                </div>
+
+                <div class="grid">
+                    <div class="metric-title">Last Price</div>
+                    <div>$${data.last_price.toFixed(2)}</div>
+
+                    <div class="metric-title">Expected 30D</div>
+                    <div>$${data.expected_30d_price.toFixed(2)}</div>
+
+                    <div class="metric-title">Probability Up</div>
+                    <div>${(data.probability_upside*100).toFixed(1)}%</div>
+
+                    <div class="metric-title">Sharpe Ratio</div>
+                    <div>${data.sharpe_ratio.toFixed(2)}</div>
+
+                    <div class="metric-title">RSI</div>
+                    <div>${data.rsi.toFixed(1)}</div>
+
+                    <div class="metric-title">MACD</div>
+                    <div>${data.macd.toFixed(2)}</div>
+
+                    <div class="metric-title">VaR (95%)</div>
+                    <div>$${data.value_at_risk_95.toFixed(2)}</div>
+                </div>
+
             </div>
+        `;
 
-            <div class="label">${data.signal_label}</div>
-
-            <div style="text-align:center;">
-                <span class="badge ${trendClass}">
-                    ${data.trend_regime}
-                </span>
-                <span class="badge">
-                    ${data.volatility_regime}
-                </span>
-                <span class="badge">
-                    ${data.bias}
-                </span>
-            </div>
-
-            <div class="grid">
-                <div class="metric-title">Last Price</div>
-                <div>$${data.last_price.toFixed(2)}</div>
-
-                <div class="metric-title">Expected 30D</div>
-                <div>$${data.expected_30d_price.toFixed(2)}</div>
-
-                <div class="metric-title">Probability Up</div>
-                <div>${(data.probability_upside*100).toFixed(1)}%</div>
-
-                <div class="metric-title">Sharpe Ratio</div>
-                <div>${data.sharpe_ratio.toFixed(2)}</div>
-
-                <div class="metric-title">RSI</div>
-                <div>${data.rsi.toFixed(1)}</div>
-
-                <div class="metric-title">MACD</div>
-                <div>${data.macd.toFixed(2)}</div>
-
-                <div class="metric-title">VaR (95%)</div>
-                <div>$${data.value_at_risk_95.toFixed(2)}</div>
-            </div>
-
-        </div>
-    `;
+    } catch (error) {
+        document.getElementById("result").innerHTML =
+            "<div class='card'>Error fetching data.</div>";
+    }
 }
 </script>
 
