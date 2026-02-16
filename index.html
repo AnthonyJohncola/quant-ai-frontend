@@ -1,107 +1,56 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Quant AI Terminal</title>
-<style>
-body {
-    font-family: Arial;
-    background-color: #0f172a;
-    color: white;
-    padding: 30px;
-}
-.card {
-    background: #1e293b;
-    padding: 25px;
-    border-radius: 12px;
-    margin-bottom: 25px;
-}
-.score {
-    font-size: 70px;
-    text-align: center;
-    font-weight: bold;
-}
-.watchlist-grid, .heatmap {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 15px;
-}
-.watch-card, .heat-cell {
-    background: #1e293b;
-    padding: 15px;
-    border-radius: 8px;
-    text-align: center;
-    cursor: pointer;
-}
-canvas {
-    margin-top: 20px;
-    background: #0f172a;
-    border-radius: 8px;
-}
-</style>
-</head>
-<body>
-
-<h1>Quant AI Terminal</h1>
-
-<select id="presetStocks" onchange="analyze()">
-<option value="">Select Stock</option>
-<option value="AAPL">AAPL</option>
-<option value="MSFT">MSFT</option>
-<option value="NVDA">NVDA</option>
-<option value="TSLA">TSLA</option>
-<option value="AMZN">AMZN</option>
-<option value="GOOGL">GOOGL</option>
-<option value="META">META</option>
-<option value="SPY">SPY</option>
-</select>
-
-<button onclick="analyze()">Analyze</button>
-
-<div id="mainPanel"></div>
-<h2>Watchlist Overview</h2>
-<div id="watchlist" class="watchlist-grid"></div>
-<h2>Sector Heatmap</h2>
-<div id="heatmap" class="heatmap"></div>
-<div id="portfolioPanel"></div>
-
 <script>
 
 const backend = "https://quant-ai-backend-production.up.railway.app";
 const watchTickers = ["AAPL","MSFT","NVDA","TSLA","AMZN","GOOGL","META","SPY"];
 
-// MAIN ANALYSIS
+// ============================
+// MAIN ANALYSIS (Lazy Load MC)
+// ============================
+
 async function analyze(tickerOverride=null) {
 
     let preset = document.getElementById("presetStocks").value;
     let ticker = tickerOverride || preset;
     if (!ticker) return;
 
-    const res = await fetch(`${backend}/analyze/${ticker}`);
-    const data = await res.json();
+    // 1️⃣ FAST LITE LOAD
+    const liteRes = await fetch(`${backend}/analyze/${ticker}?lite=true`);
+    const liteData = await liteRes.json();
 
-    renderMainPanel(data);
+    renderMainPanelLite(liteData);
+
+    // 2️⃣ BACKGROUND FULL LOAD
+    fetch(`${backend}/analyze/${ticker}`)
+        .then(res => res.json())
+        .then(fullData => {
+            if (fullData.simulations) {
+                drawMonteCarlo(fullData.simulations);
+            }
+        });
 }
 
-function renderMainPanel(data) {
+function renderMainPanelLite(data) {
 
     document.getElementById("mainPanel").innerHTML = `
         <div class="card">
             <h2>${data.ticker}</h2>
             <div class="score">${data.signal_score.toFixed(1)}</div>
             <div>${data.signal_label} | ${data.trend_regime}</div>
+            <div style="margin-top:20px;">Loading Monte Carlo...</div>
             <canvas id="mcChart" width="800" height="250"></canvas>
         </div>
     `;
-
-    if (data.simulations) {
-        drawMonteCarlo(data.simulations);
-    }
 }
 
-// REDUCED DRAW LOAD
+// ============================
+// MONTE CARLO (Reduced Draw)
+// ============================
+
 function drawMonteCarlo(simulations) {
 
     const canvas = document.getElementById("mcChart");
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -119,7 +68,10 @@ function drawMonteCarlo(simulations) {
     });
 }
 
+// ============================
 // PARALLEL WATCHLIST LOAD
+// ============================
+
 async function loadWatchlist() {
 
     const promises = watchTickers.map(t =>
@@ -171,7 +123,4 @@ async function loadWatchlist() {
 loadWatchlist();
 
 </script>
-
-</body>
-</html>
 
